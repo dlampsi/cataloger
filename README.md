@@ -2,11 +2,26 @@
 
 Util for interact with ldap and active directory catalogs
 
+## Install
 
+```shell
+wget https://github.com/dlampsi/cataloger/releases/...
+chmod +x cataloger
+mv ./cataloger /usr/local/bin/cataloger
 ```
-cataloger get fake1 fake2 group1 "Ad group1"
-cataloger get user fake1 fake2
-cataloger get group "group1"
-cataloger ger -u fake1 -u fake2 -g "Group Name1"
-cataloger remove mytestuser1
+
+## Usage
+
+Full help avalible on `-h` or `--help` flags:
+```shell
+cataloger -h
+```
+
+Some examples bellow.
+
+Get user info:
+
+```shell
+cataloger get dummyuser01 dummyuser01
+cataloger get users dummyuser01 dummyuser01
 ```
