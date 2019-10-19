@@ -2,7 +2,7 @@ on: release
 jobs:
   test:
     name: Tests
-    runs-on: ubuntu-19.04
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/setup-go@v1
         with:
