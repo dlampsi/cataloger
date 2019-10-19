@@ -1,5 +1,5 @@
-name: release
-on: release
+name: default
+on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-18.04
@@ -28,8 +28,3 @@ jobs:
       
       - name: Build
         run: make build
-
-      - uses: actions/upload-artifact@master
-        with:
-          name: cataloger
-          path: cataloger
