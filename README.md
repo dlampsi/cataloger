@@ -1,6 +1,6 @@
 # cataloger
 
-[![GoDoc](https://godoc.org/github.com/dlampsi/cataloger?status.svg)](https://godoc.org/github.com/dlampsi/cataloger) [![Actions Status](https://github.com/dlampsi/cataloger/workflows/default/badge.svg)](https://github.com/dlampsi/cataloger/actions)
+[![Actions Status](https://github.com/dlampsi/cataloger/workflows/default/badge.svg)](https://github.com/dlampsi/cataloger/actions)
 
 Util for interact with ldap and active directory catalogs
 
