@@ -4,7 +4,7 @@ Util for interact with ldap and active directory catalogs
 
 ## Install
 
-```shell
+```bash
 wget https://github.com/dlampsi/cataloger/releases/...
 chmod +x cataloger
 mv ./cataloger /usr/local/bin/cataloger
@@ -13,15 +13,17 @@ mv ./cataloger /usr/local/bin/cataloger
 ## Usage
 
 Full help avalible on `-h` or `--help` flags:
-```shell
+```bash
 cataloger -h
 ```
 
-Some examples bellow.
+Some examples bellow:
+```bash
+# Get info
+cataloger get dummyuser01 dummygroup01
+# Get users infor
+cataloger get users dummyuser01 dummyuser02
+# Get groups info
+cataloger get groups dummygroup01 dummygroup02
 
-Get user info:
-
-```shell
-cataloger get dummyuser01 dummyuser01
-cataloger get users dummyuser01 dummyuser01
 ```

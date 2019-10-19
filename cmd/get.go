@@ -10,15 +10,10 @@ var (
 	getCmd = &cobra.Command{
 		Use:   "get [enties_id]",
 		Short: "Get data from catalog",
-		Run: func(cmd *cobra.Command, args []string) {
-			for _, e := range args {
-				fmt.Printf("Get entrie info: %s\n", e)
-			}
-		},
 	}
 
 	getUserCmd = &cobra.Command{
-		Use:   "users [users_id]",
+		Use:   "user [users_id]",
 		Short: "Get users data from catalog",
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, u := range args {
@@ -28,8 +23,8 @@ var (
 	}
 
 	getGroupCmd = &cobra.Command{
-		Use:   "groups [groups_id]",
-		Short: "Get groups data from catalog",
+		Use:   "group [groups_id]",
+		Short: "Get group data from catalog",
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, g := range args {
 				fmt.Printf("Get group info: %s\n", g)
