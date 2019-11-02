@@ -1,10 +1,13 @@
+.dev
+
 # Binaries for programs and plugins
-cataloger
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+cataloger
+.cataloger
 
 # Test binary, build with `go test -c`
 *.test

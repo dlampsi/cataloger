@@ -17,7 +17,7 @@ var (
 		Short: "Group modify operations",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("unexpected number of <group_id> argument; want: 1, get: %d", len(args))
+				return fmt.Errorf("Unexpected number of <group_id> argument; want: 1, get: %d", len(args))
 			}
 			return nil
 		},
