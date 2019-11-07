@@ -18,10 +18,16 @@ jobs:
       - name: Tests
         run:  go test -v ./...
 
+      - name: GITHUB_REF
+        run: echo ${GITHUB_REF}
+      
+      - name: Branch name
+        run: echo running on branch ${GITHUB_REF##*/}
+
       - name: Build
         run: |
-          GOOS=darwin GOARCH=amd64 make build RELEASE=$(git branch | grep \* | cut -d ' ' -f2) OUTPUT=cataloger_darwin_amd64
-          GOOS=linux GOARCH=amd64 make build RELEASE=$(git branch | grep \* | cut -d ' ' -f2) OUTPUT=cataloger_linux_amd64
+          GOOS=darwin GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_darwin_amd64
+          GOOS=linux GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_linux_amd64
           
       - uses: actions/upload-artifact@master
         with:
