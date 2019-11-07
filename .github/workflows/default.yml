@@ -1,8 +1,11 @@
-name: default
-on: [push, pull_request]
+name: release
+on: release
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, centos-7]
     steps:
       - name: Install Go 1.13
         uses: actions/setup-go@v1
@@ -16,7 +19,10 @@ jobs:
         run:  go test -v ./...
   
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, centos-7]
     steps:
       - name: Install Go 1.13
         uses: actions/setup-go@v1
@@ -27,4 +33,10 @@ jobs:
         uses: actions/checkout@v1
       
       - name: Build
-        run: make build
+        run: |
+          make build OUTPUT=cataloger
+
+      - uses: actions/upload-artifact@master
+        with:
+          name: cataloger
+          path: cataloger

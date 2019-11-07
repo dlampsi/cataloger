@@ -2,12 +2,11 @@ package ad
 
 import (
 	"fmt"
-	"os"
 	"sync"
-	"text/tabwriter"
 
 	"github.com/dlampsi/generigo"
 	"github.com/dlampsi/ldapconn"
+	log "github.com/sirupsen/logrus"
 )
 
 // Groups struct.
@@ -130,128 +129,137 @@ func (it *Groups) procGroupMembers(memberDN string, wg *sync.WaitGroup, directCh
 	<-quotaCh // Release slot in the quota channel
 }
 
-// Print Prints group info.
-func (it *Groups) Print(m *GroupEntry) {
-	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 8, 3, '\t', tabwriter.AlignRight)
-
-	fmt.Fprintln(w, "Parameter\tValue")
-	fmt.Fprintln(w, "---------\t-----")
-	fmt.Fprintln(w, "sAMAccountName\t", m.ID)
-	fmt.Fprintln(w, "dn\t", m.DN)
-	fmt.Fprintln(w, "cn\t", m.CN)
-	fmt.Fprintln(w, "description\t", m.Description)
-	fmt.Fprintln(w, "members_count\t", len(m.Members.All))
-	fmt.Fprintln(w)
-	w.Flush()
-
-	members := ""
-	for _, member := range m.Members.All {
-		members = members + fmt.Sprintf("%s\n", member)
+// AddMembersByAccountName Add group members.
+// Proc all new members, add to chanel only if member exists and he's not a member
+func (it *Groups) AddMembersByAccountName(sAMAccountName string, members []string) error {
+	log.Debugf("Add '%s' members: %v", sAMAccountName, members)
+	group, err := it.GetByAccountName(sAMAccountName)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintln(w, "Members")
-	fmt.Fprintln(w, "------")
-	fmt.Fprintln(w, members)
-	fmt.Fprintln(w)
-	w.Flush()
-
-	membersDirect := ""
-	for _, member := range m.Members.Direct {
-		membersDirect = membersDirect + fmt.Sprintf("%s\n", member)
+	if group == nil {
+		return ErrEntryNotFound
 	}
-	fmt.Fprintln(w, "Members (direct)")
-	fmt.Fprintln(w, "----------------")
-	fmt.Fprintln(w, membersDirect)
-	fmt.Fprintln(w)
-	w.Flush()
+	log.Debugf("Group '%s' found", sAMAccountName)
+	if len(members) == 0 {
+		return ErrEmptyMembersList
+	}
+
+	wg := &sync.WaitGroup{}
+	ch := make(chan string, 500)
+	for _, member := range members {
+		wg.Add(1)
+		go func(group *GroupEntry, member string, wg *sync.WaitGroup, ch chan<- string) {
+			defer wg.Done()
+			log.Debugf("Processing member '%s'", member)
+			user, err := it.c.Users().GetByAccountNameShort(member)
+			if err != nil {
+				log.Warnf("Can't get member '%s': %s", member, err.Error())
+				return
+			}
+			if user == nil {
+				log.Warnf("Member entry '%s' not found", member)
+				return
+			}
+			if generigo.StringInSlice(user.ID, group.Members.All) {
+				log.Warnf("Entry '%s' already member of a group", member)
+				return
+			}
+			log.Debugf("New member '%s' will be added", member)
+			ch <- user.DN
+		}(group, member, wg, ch)
+	}
+	wg.Wait()
+	close(ch)
+
+	toadd := make([]string, 0, len(ch))
+	for r := range ch {
+		toadd = append(toadd, r)
+	}
+	if len(toadd) == 0 {
+		return ErrNoNewMembersToAdd
+	}
+
+	newMembersDN := make([]string, 0, len(group.Members.DirectDN)+len(toadd))
+	newMembersDN = append(newMembersDN, group.Members.DirectDN...)
+	newMembersDN = append(newMembersDN, toadd...)
+
+	// Update
+	if err := it.c.cl.UpdateAttribute(group.DN, "member", newMembersDN); err != nil {
+		return err
+	}
+
+	log.Infof("Added %d group members", len(toadd))
+
+	return nil
 }
 
-// PrintMembers Prints group members list only.
-func (it *Groups) PrintMembers(m *GroupEntry) {
-	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 8, 3, '\t', tabwriter.AlignRight)
-	members := ""
-	for _, member := range m.Members.All {
-		members = members + fmt.Sprintf("%s\n", member)
+// DelMembersByAccountName Delete user from a group members.
+// Delete from group only direct group members.
+func (it *Groups) DelMembersByAccountName(sAMAccountName string, members []string) error {
+	log.Debugf("Del '%s' members: %v", sAMAccountName, members)
+	group, err := it.GetByAccountName(sAMAccountName)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintln(w, "Members")
-	fmt.Fprintln(w, "------")
-	fmt.Fprintln(w, members)
-	fmt.Fprintln(w)
-	w.Flush()
-}
-
-// PrintMembersDirect Prints group members list only.
-func (it *Groups) PrintMembersDirect(m *GroupEntry) {
-	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 8, 3, '\t', tabwriter.AlignRight)
-	membersDirect := ""
-	for _, member := range m.Members.Direct {
-		membersDirect = membersDirect + fmt.Sprintf("%s\n", member)
+	if group == nil {
+		return ErrEntryNotFound
 	}
-	fmt.Fprintln(w, "Members (direct)")
-	fmt.Fprintln(w, "----------------")
-	fmt.Fprintln(w, membersDirect)
-	fmt.Fprintln(w)
-	w.Flush()
+	log.Debugf("Group '%s' found", sAMAccountName)
+	if len(members) == 0 {
+		return ErrEmptyMembersList
+	}
+
+	wg := &sync.WaitGroup{}
+	ch := make(chan string, 500)
+	for _, member := range members {
+		wg.Add(1)
+		go func(group *GroupEntry, member string, wg *sync.WaitGroup, ch chan<- string) {
+			defer wg.Done()
+			log.Debugf("Processing member '%s'", member)
+			user, err := it.c.Users().GetByAccountNameShort(member)
+			if err != nil {
+				log.Warnf("Can't get member '%s': %s", member, err.Error())
+				return
+			}
+			if user == nil {
+				log.Warnf("Member entry '%s' not found", member)
+			}
+			if !generigo.StringInSlice(user.ID, group.Members.All) {
+				log.Warnf("Entry '%s' already not a member of a group or a subgroup", user.ID)
+				return
+			}
+			log.Debugf("Member '%s' will be deleted from group", member)
+			ch <- user.DN
+		}(group, member, wg, ch)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	todell := make([]string, 0, len(ch))
+	for r := range ch {
+		todell = append(todell, r)
+	}
+
+	if len(todell) == 0 {
+		return nil
+	}
+
+	// Delete from group only current group members
+	newMembersDN := make([]string, 0, len(group.Members.DirectDN))
+	for _, curMember := range group.Members.DirectDN {
+		if !generigo.StringInSlice(curMember, todell) {
+			newMembersDN = append(newMembersDN, curMember)
+		}
+	}
+
+	// Update
+	if err := it.c.cl.UpdateAttribute(group.DN, "member", newMembersDN); err != nil {
+		return fmt.Errorf("error update group: %s", err.Error())
+	}
+
+	log.Infof("Removed %d group members", len(todell))
+
+	return nil
 }
-
-// // AddMembers Add user to group members.
-// // Param groupID is sAMAccountName attribute.
-// // Param membersIDs is a list of sAMAccountName attributes.
-// func (it *Groups) AddMembersByAccountName(sAMAccountName string, membersIDs []string) error {
-// 	group, err := it.GetByAccountName(sAMAccountName)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if len(membersIDs) == 0 {
-// 		return errors.New("empty method input data")
-// 	}
-
-// 	wg := &sync.WaitGroup{}
-// 	ch := make(chan string, 500)
-// 	for _, memberID := range membersIDs {
-// 		wg.Add(1)
-// 		go func(group *GroupEntry, memberID string, wg *sync.WaitGroup, ch chan<- string) {
-// 			defer wg.Done()
-// 			u, err := it.c.Users().GetByAccountNameShort(memberID)
-// 			if err != nil {
-// 				rlog.Error(err)
-// 				return
-// 			}
-// 			if u == nil {
-// 				fmt.Printf("Member '%s' not found", memberID)
-// 			}
-// 			if generigo.StringInSlice(u.ID, group.Members.All) {
-// 				rlog.Warn("Already member of a group")
-// 				return
-// 			}
-// 			ch <- u.DN
-// 		}(group, memberID, wg, ch)
-// 	}
-
-// 	wg.Wait()
-// 	close(ch)
-
-// 	toadd := make([]string, 0, len(ch))
-// 	for r := range ch {
-// 		toadd = append(toadd, r)
-// 	}
-
-// 	if len(toadd) == 0 {
-// 		return ErrEntryNotUpdated
-// 	}
-
-// 	newMembersDN := make([]string, 0, len(group.Members.DirectDN)+len(toadd))
-// 	newMembersDN = append(newMembersDN, group.Members.DirectDN...)
-// 	newMembersDN = append(newMembersDN, toadd...)
-
-// 	// Update
-// 	if err := it.c.cl.UpdateAttribute(group.DN, "member", newMembersDN); err != nil {
-// 		flog.Errorf("Error update ldap entry: %s", err.Error())
-// 		return err
-// 	}
-// 	flog.Info("Group members updated")
-
-// 	return nil
-// }

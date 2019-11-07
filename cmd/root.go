@@ -14,12 +14,11 @@ import (
 
 const (
 	cfgFilename  = "config"
-	cfgExtention = "yml"
+	cfgExtention = "json"
 	cfgFolder    = ".cataloger"
 )
 
 var (
-	v           = viper.New()
 	fullVersion bool
 	configFile  string
 	source      string
@@ -83,15 +82,14 @@ func onInit() {
 	path := fmt.Sprintf("./%s", cfgFolder)
 
 	if configFile != "" {
-		log.Debugf("Load specified config: %s\n", configFile)
 		viper.SetConfigType(cfgExtention)
-		v.SetConfigFile(configFile)
+		viper.SetConfigFile(configFile)
 	} else {
 		viper.SetConfigName(cfgFilename)
 		viper.AddConfigPath(path)
 		viper.AddConfigPath(fmt.Sprintf("$HOME/%s", cfgFolder))
 		if osUser, err := user.Current(); err == nil {
-			v.AddConfigPath(fmt.Sprintf("%s/%s", osUser.HomeDir, cfgFolder))
+			viper.AddConfigPath(fmt.Sprintf("%s/%s", osUser.HomeDir, cfgFolder))
 		}
 
 		viper.SetConfigType(cfgExtention)
@@ -99,12 +97,23 @@ func onInit() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			log.Fatal("Config file not found")
+			log.Warning("Config file not found")
 		} else {
-			log.Fatal(err)
+			log.Error(err)
 		}
 	}
-	log.Debugf("Using config file: %v", viper.ConfigFileUsed())
+
+	if viper.ConfigFileUsed() != "" {
+		log.Debugf("Using config file: %v", viper.ConfigFileUsed())
+
+		decoded, err := base64Decode(viper.GetString("auth.bind_pass"))
+		if err != nil {
+			log.Fatalf("Can't decode password from base64: %s", err.Error())
+		}
+		if decoded != "" {
+			viper.Set("auth.bind_pass", decoded)
+		}
+	}
 }
 
 // Execute adds all child commands.

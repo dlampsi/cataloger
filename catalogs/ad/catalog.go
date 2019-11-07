@@ -2,11 +2,18 @@ package ad
 
 import (
 	"cataloger/catalogs"
+	"errors"
 	"fmt"
 
 	"github.com/dlampsi/generigo"
 	"github.com/dlampsi/ldapconn"
 	"gopkg.in/ldap.v3"
+)
+
+var (
+	ErrNoNewMembersToAdd = errors.New("no new members to add")
+	ErrEntryNotFound     = errors.New("entry not foiund")
+	ErrEmptyMembersList  = errors.New("empty members list")
 )
 
 // Catalog AD catalog struct.
