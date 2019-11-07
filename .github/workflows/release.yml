@@ -2,7 +2,10 @@ name: release
 on: release
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
     steps:
       - name: Install Go 1.13
         uses: actions/setup-go@v1
@@ -19,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, centos-7]
+        os: [ubuntu-18.04]
     steps:
       - name: Install Go 1.13
         uses: actions/setup-go@v1
@@ -31,10 +34,16 @@ jobs:
       
       - name: Build
         run: |
-          gitTag = $(git describe --tags)
-          make build RELEASE=$gitTag OUTPUT=cataloger
+          gitTag=$(git describe --tags)
+          GOOS=linux GOARCH=amd64 make build RELEASE=$gitTag OUTPUT=cataloger_darwin_amd64
+          GOOS=linux GOARCH=amd64 make build RELEASE=$gitTag OUTPUT=cataloger_linux_amd64
 
       - uses: actions/upload-artifact@master
         with:
-          name: cataloger
-          path: cataloger
+          name: cataloger_darwin_amd64
+          path: cataloger_darwin_amd64
+      
+      - uses: actions/upload-artifact@master
+        with:
+          name: cataloger_linux_amd64
+          path: cataloger_linux_amd64
