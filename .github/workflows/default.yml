@@ -14,24 +14,21 @@ jobs:
 
       - name: Checkout repo
         uses: actions/checkout@v1
-      
+        
       - name: Tests
         run:  go test -v ./...
-      
-      - name: GITHUB_REF
-        run: echo running on ref ${GITHUB_REF}, branch ${GITHUB_REF##*/}
 
       - name: Build
         run: |
-          GOOS=darwin GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_darwin_amd64
-          GOOS=linux GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_linux_amd64
+          GOOS=darwin GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_${GITHUB_REF##*/}_darwin_amd64
+          GOOS=linux GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_${GITHUB_REF##*/}_linux_amd64
           
       - uses: actions/upload-artifact@master
         with:
-          name: cataloger_darwin_amd64
-          path: cataloger_darwin_amd64
+          name: cataloger_${GITHUB_REF##*/}_darwin_amd64
+          path: cataloger_${GITHUB_REF##*/}_darwin_amd64
       
       - uses: actions/upload-artifact@master
         with:
-          name: cataloger_linux_amd64
-          path: cataloger_linux_amd64
+          name: cataloger_${GITHUB_REF##*/}_linux_amd64
+          path: cataloger_${GITHUB_REF##*/}_linux_amd64
