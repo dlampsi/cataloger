@@ -13,10 +13,10 @@ var BuildTime = ""
 
 // ForPrintFull Returns formated version and build time string for print.
 func ForPrintFull() string {
-	return fmt.Sprintf("cataloger v%s\nBuild time %s\n", Version, BuildTime)
+	return fmt.Sprintf("cataloger %s\nBuild time %s\n", Version, BuildTime)
 }
 
 // ForPrint Returns formated version string for print.
 func ForPrint() string {
-	return fmt.Sprintf("cataloger v%s\n", Version)
+	return fmt.Sprintf("cataloger %s\n", Version)
 }
