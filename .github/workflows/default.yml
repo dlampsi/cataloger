@@ -1,5 +1,13 @@
 name: default
-on: [push]
+on: 
+  push:
+    branches:    
+      - master
+      - 'feature/**'
+    paths-ignore:
+      - README.md
+    tags-ignore:
+      - v*
 jobs:
   build:
     runs-on: ${{ matrix.os }}
