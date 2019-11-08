@@ -4,6 +4,7 @@ on:
     branches:    
       - master
       - 'feature/**'
+      - 'fix/**'
     paths-ignore:
       - README.md
     tags-ignore:

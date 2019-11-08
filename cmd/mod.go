@@ -68,8 +68,17 @@ func modGroupAd(args []string) {
 		}
 	}
 	if len(delMembers) > 0 {
-		if err := c.Groups().DelMembersByAccountName(args[0], addMembers); err != nil {
-			log.Fatal(err)
+		if err := c.Groups().DelMembersByAccountName(args[0], delMembers); err != nil {
+			switch err {
+			case ad.ErrEntryNotFound:
+				log.Fatal("Group not found")
+			case ad.ErrEmptyMembersList:
+				log.Fatal("Empty add members list (--add-member flags)")
+			case ad.ErrNoNewMembersToAdd:
+				log.Warning("No new members to add")
+			default:
+				log.Fatal(err)
+			}
 		}
 	}
 }
