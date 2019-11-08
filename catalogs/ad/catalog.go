@@ -107,8 +107,8 @@ func (c *Catalog) GetByDN(dn string) (*ldap.Entry, error) {
 	return c.cl.SearchEntry(sr)
 }
 
-// CheckConn Check connection to catalog.
-func (c *Catalog) CheckConn(cfg *catalogs.Config) error {
+// CheckConnection Check connection to AD.
+func CheckConnection(cfg *catalogs.Config) error {
 	_, err := ldapconn.NewClient(&ldapconn.Config{
 		Host:     cfg.Host,
 		Port:     cfg.Port,

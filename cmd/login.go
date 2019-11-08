@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cataloger/catalogs/ad"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -53,6 +54,24 @@ var (
 			if err := viper.WriteConfig(); err != nil {
 				log.Fatal(err)
 			}
+
+			log.Debugf("Trying connect to catalog. Source: %s", source)
+			// Decode password
+			d, err := base64Decode(viper.GetString("auth.bind_pass"))
+			if err != nil {
+				log.Fatal(err)
+			}
+			viper.Set("auth.bind_pass", d)
+			switch source {
+			case "ad":
+				if err := ad.CheckConnection(createConfig()); err != nil {
+					log.Fatal(err)
+				}
+				log.Debugf("Successfully connected to %s:%s", viper.GetString("server.host"), viper.GetString("server.port"))
+			default:
+				log.Fatalf("Unknown source type: %s", source)
+			}
+
 			log.Info("Login successfull")
 		},
 	}
