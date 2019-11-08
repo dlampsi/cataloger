@@ -76,7 +76,7 @@ func modGroupAd(args []string) {
 				log.Fatal("Group not found")
 			case ad.ErrEmptyMembersList:
 				log.Fatal("Empty del members list (--del-member flags)")
-			case ad.ErrNoNewMembersToAdd:
+			case ad.ErrNoNewMembersToDel:
 				log.Warning("No new group members to delete")
 				os.Exit(2)
 			default:
