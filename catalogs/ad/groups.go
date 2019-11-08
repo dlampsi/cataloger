@@ -224,6 +224,7 @@ func (it *Groups) DelMembersByAccountName(sAMAccountName string, members []strin
 			}
 			if user == nil {
 				log.Warnf("Member entry '%s' not found", member)
+				return
 			}
 			if !generigo.StringInSlice(user.ID, group.Members.All) {
 				log.Warnf("Entry '%s' already not a member of a group or a subgroup", user.ID)
@@ -243,7 +244,7 @@ func (it *Groups) DelMembersByAccountName(sAMAccountName string, members []strin
 	}
 
 	if len(todell) == 0 {
-		return nil
+		return ErrNoNewMembersToDel
 	}
 
 	// Delete from group only current group members

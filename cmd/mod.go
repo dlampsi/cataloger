@@ -3,6 +3,7 @@ package cmd
 import (
 	"cataloger/catalogs/ad"
 	"fmt"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -61,7 +62,8 @@ func modGroupAd(args []string) {
 			case ad.ErrEmptyMembersList:
 				log.Fatal("Empty add members list (--add-member flags)")
 			case ad.ErrNoNewMembersToAdd:
-				log.Warning("No new members to add")
+				log.Warning("No new group members to add")
+				os.Exit(2)
 			default:
 				log.Fatal(err)
 			}
@@ -73,9 +75,10 @@ func modGroupAd(args []string) {
 			case ad.ErrEntryNotFound:
 				log.Fatal("Group not found")
 			case ad.ErrEmptyMembersList:
-				log.Fatal("Empty add members list (--add-member flags)")
-			case ad.ErrNoNewMembersToAdd:
-				log.Warning("No new members to add")
+				log.Fatal("Empty del members list (--del-member flags)")
+			case ad.ErrNoNewMembersToDel:
+				log.Warning("No new group members to delete")
+				os.Exit(2)
 			default:
 				log.Fatal(err)
 			}
