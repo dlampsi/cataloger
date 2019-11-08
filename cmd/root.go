@@ -97,7 +97,7 @@ func onInit() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			log.Warning("Config file not found")
+			log.Debugf("Config file not found")
 		} else {
 			log.Error(err)
 		}
