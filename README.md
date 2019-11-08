@@ -10,15 +10,12 @@ Avalible catalogs types:
 
 ## Install
 
-Example commands for darwin install `v0.0.1`:
+You can download releases [here](https://github.com/dlampsi/cataloger/releases).
+
+Example deploy script - [get_darwin_release.sh](scripts/get_darwin_release.sh) for darwin install `v0.0.1`:
 
 ```bash
-wget https://github.com/dlampsi/cataloger/releases/download/v0.0.1/cataloger_v0.0.1_darwin_amd64.zip
-unzip cataloger_v0.0.1_darwin_amd64.zip
-cd cataloger_v0.0.1_darwin_amd64
-mv cataloger_darwin_amd64 /usr/local/bin/cataloger
-chmod +x /usr/local/bin/cataloger
-cataloger --version
+./scripts/get_darwin_release.sh v0.0.1
 ```
 
 ## Usage
