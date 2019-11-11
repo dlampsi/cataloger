@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"cataloger/catalogs/ad"
+	"cataloger/catalogs/ldap"
 	"fmt"
 	"os"
 
@@ -33,8 +34,11 @@ var (
 			switch source {
 			case "ad":
 				modGroupAd(args)
+			case "ldap":
+				modGroupLdap(args)
 			default:
 				log.Errorf("Unknown source '%s'", source)
+				os.Exit(1)
 			}
 		},
 	}
@@ -44,11 +48,10 @@ func init() {
 	rootCmd.AddCommand(modCmd)
 	modCmd.AddCommand(modGroupCmd)
 
-	modGroupCmd.Flags().StringSliceVarP(&addMembers, "add-member", "a", []string{}, "Add new members to group")
-	modGroupCmd.Flags().StringSliceVarP(&delMembers, "del-member", "d", []string{}, "Delete members from group")
+	modGroupCmd.Flags().StringSliceVarP(&addMembers, "add-member", "a", []string{}, "Members ID to add to group")
+	modGroupCmd.Flags().StringSliceVarP(&delMembers, "del-member", "d", []string{}, "Members ID to remove from group")
 }
 
-// Modify AD group.
 func modGroupAd(args []string) {
 	c, err := ad.NewCatalog(createConfig())
 	if err != nil {
@@ -77,6 +80,43 @@ func modGroupAd(args []string) {
 			case ad.ErrEmptyMembersList:
 				log.Fatal("Empty del members list (--del-member flags)")
 			case ad.ErrNoNewMembersToDel:
+				log.Warning("No new group members to delete")
+				os.Exit(2)
+			default:
+				log.Fatal(err)
+			}
+		}
+	}
+}
+
+func modGroupLdap(args []string) {
+	c, err := ldap.NewCatalog(createConfig())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(addMembers) > 0 {
+		if _, err := c.Groups().AddMembers(args[0], addMembers); err != nil {
+			switch err {
+			case ldap.ErrEntryNotFound:
+				log.Fatal("Group not found")
+			case ldap.ErrEmptyMembersList:
+				log.Fatal("Empty add members list (--add-member flags)")
+			case ldap.ErrNoNewMembersToAdd:
+				log.Warning("No new group members to add")
+				os.Exit(2)
+			default:
+				log.Fatal(err)
+			}
+		}
+	}
+	if len(delMembers) > 0 {
+		if _, err := c.Groups().DelMembers(args[0], delMembers); err != nil {
+			switch err {
+			case ldap.ErrEntryNotFound:
+				log.Fatal("Group not found")
+			case ldap.ErrEmptyMembersList:
+				log.Fatal("Empty del members list (--del-member flags)")
+			case ldap.ErrNoNewMembersToDel:
 				log.Warning("No new group members to delete")
 				os.Exit(2)
 			default:
