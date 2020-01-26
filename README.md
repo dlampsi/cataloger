@@ -4,9 +4,19 @@
 
 Util for interact with various catalogs systems.
 
-Avalible catalogs types:
+## Functionality
 
-- Active Directory (AD)
+Active Directory (AD):
+
+- Get users and groups info
+- Add/remove group members
+
+LDAP:
+
+- Get users and groups info
+- Add/remove group members
+- Create group
+- Remove group
 
 ## Install
 
@@ -82,6 +92,9 @@ Some usage examples bellow:
 # Get one user info
 cataloger get dummyuser01
 cataloger get dummyuser01 dummygroup01
+
+# Get user info from ldap
+cataloger get dummyuser01 -s ldap
 
 # Get one group info
 cataloger get groups dummygroup01

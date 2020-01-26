@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dlampsi/ldapconn"
+	log "github.com/sirupsen/logrus"
 )
 
 // Users Catalog users struct.
@@ -25,49 +26,62 @@ type UserEntry struct {
 	Groups      EntryMembership `json:"groups"`
 }
 
-// GetByAccountNameShort Get user info from catalog by user sAMAccountName.
+// Get Search user info in catalog by specified ldap filter.
 // Returns nil structure if user not found.
-func (it *Users) GetByAccountNameShort(sAMAccountName string) (*UserEntry, error) {
-	filter := fmt.Sprintf("(sAMAccountName=%s)", sAMAccountName)
+func (it *Users) Get(filter string) (*UserEntry, error) {
+	u, err := it.GetShort(filter)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, nil
+	}
+	membsh, err := it.c.GetMembership(u.DN, nil)
+	if err != nil {
+		return nil, err
+	}
+	u.Groups = EntryMembership{
+		All:      membsh.All,
+		Direct:   membsh.Direct,
+		DirectDN: membsh.DirectDN,
+		Count:    len(membsh.All),
+	}
+	return u, nil
+}
+
+// GetShort Search user info in catalog by specified ldap filter.
+// Without user group membership.
+// Returns nil structure if user not found.
+func (it *Users) GetShort(filter string) (*UserEntry, error) {
 	sr := ldapconn.CreateRequest(it.c.searchBase, filter)
 	entry, err := it.c.cl.SearchEntry(sr)
 	if err != nil {
 		return nil, fmt.Errorf("error get: " + err.Error())
 	}
 	if entry == nil {
+		log.Debugf("No entries found by filter '%s'", filter)
 		return nil, nil
 	}
-	u := &UserEntry{
+	return &UserEntry{
 		DN:          entry.DN,
 		ID:          entry.GetAttributeValue("sAMAccountName"),
 		CN:          entry.GetAttributeValue("cn"),
 		Mail:        entry.GetAttributeValue("mail"),
 		DisplayName: entry.GetAttributeValue("displayName"),
-	}
-
-	return u, nil
+	}, nil
 }
 
-// GetByAccountName Returns AD user info. Searches by sAMAccountName.
+// GetByAccountName Get user info from catalog by user sAMAccountName.
+// Returns nil structure if user not found.
 func (it *Users) GetByAccountName(sAMAccountName string) (*UserEntry, error) {
-	user, err := it.GetByAccountNameShort(sAMAccountName)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		return nil, nil
-	}
+	filter := fmt.Sprintf("(sAMAccountName=%s)", sAMAccountName)
+	return it.Get(filter)
+}
 
-	membsh, err := it.c.GetMembership(user.DN, nil)
-	if err != nil {
-		return nil, err
-	}
-	user.Groups = EntryMembership{
-		All:      membsh.All,
-		Direct:   membsh.Direct,
-		DirectDN: membsh.DirectDN,
-		Count:    len(membsh.All),
-	}
-
-	return user, nil
+// GetByAccountNameShort Get user info from catalog by user sAMAccountName.
+// Without user group membership.
+// Returns nil structure if user not found.
+func (it *Users) GetByAccountNameShort(sAMAccountName string) (*UserEntry, error) {
+	filter := fmt.Sprintf("(sAMAccountName=%s)", sAMAccountName)
+	return it.GetShort(filter)
 }

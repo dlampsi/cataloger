@@ -25,10 +25,9 @@ type UserEntry struct {
 	Netgroups EntryMembership `json:"netgroups"`
 }
 
-// GetByUidShort Get short user info (withour groups) from catalog by user uid.
+// Get Searches user info in catalog by specified filter.
 // Returns nil structure if user not found.
-func (it *Users) GetByUidShort(uid string) (*UserEntry, error) {
-	filter := fmt.Sprintf("(uid=%s)", uid)
+func (it *Users) Get(filter string) (*UserEntry, error) {
 	sr := ldapconn.CreateRequest(it.c.searchBase, filter)
 	entry, err := it.c.cl.SearchEntry(sr)
 	if err != nil {
@@ -44,31 +43,81 @@ func (it *Users) GetByUidShort(uid string) (*UserEntry, error) {
 		Mail: entry.GetAttributeValue("mail"),
 	}
 
+	if u.ID != "" {
+		ug, err := it.getGroups(u.ID)
+		if err != nil {
+			return nil, err
+		}
+		u.Groups = EntryMembership{
+			Count:    ug.Count,
+			Direct:   ug.Direct,
+			DirectDN: ug.DirectDN,
+		}
+	}
 	return u, nil
 }
 
-// GetByUid Get user info from catalog by user uid.
+// GetShort Searches user info in catalog by specified filter.
+// Returns data without user group membership.
 // Returns nil structure if user not found.
-func (it *Users) GetByUid(uid string) (*UserEntry, error) {
-	user, err := it.GetByUidShort(uid)
+func (it *Users) GetShort(filter string) (*UserEntry, error) {
+	sr := ldapconn.CreateRequest(it.c.searchBase, filter)
+	entry, err := it.c.cl.SearchEntry(sr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error get: " + err.Error())
 	}
-	if user == nil {
+	if entry == nil {
 		return nil, nil
 	}
-
-	ug, err := it.getGroups(uid)
-	if err != nil {
-		return nil, err
-	}
-	user.Groups = EntryMembership{
-		Count:    ug.Count,
-		Direct:   ug.Direct,
-		DirectDN: ug.DirectDN,
+	u := &UserEntry{
+		DN:   entry.DN,
+		ID:   entry.GetAttributeValue("uid"),
+		CN:   entry.GetAttributeValue("cn"),
+		Mail: entry.GetAttributeValue("mail"),
 	}
 
-	return user, nil
+	if u.ID != "" {
+		ug, err := it.getGroups(u.ID)
+		if err != nil {
+			return nil, err
+		}
+		u.Groups = EntryMembership{
+			Count:    ug.Count,
+			Direct:   ug.Direct,
+			DirectDN: ug.DirectDN,
+		}
+	}
+	return u, nil
+}
+
+// GetByUid Searches user info in catalog by 'uid' attribute.
+// Returns nil structure if user not found.
+func (it *Users) GetByUid(uid string) (*UserEntry, error) {
+	filter := fmt.Sprintf("(uid=%s)", uid)
+	return it.Get(filter)
+}
+
+// GetByUid Searches user info in catalog by 'uid' attribute.
+// Returns data without user group membership.
+// Returns nil structure if user not found.
+func (it *Users) GetByUidShort(uid string) (*UserEntry, error) {
+	filter := fmt.Sprintf("(uid=%s)", uid)
+	return it.GetShort(filter)
+}
+
+// GetByUid Searches user info in catalog by 'cn' attribute.
+// Returns nil structure if user not found.
+func (it *Users) GetByCn(cn string) (*UserEntry, error) {
+	filter := fmt.Sprintf("(cn=%s)", cn)
+	return it.Get(filter)
+}
+
+// GetByUid Searches user info in catalog by 'cn' attribute.
+// Returns data without user group membership.
+// Returns nil structure if user not found.
+func (it *Users) GetByCnShort(cn string) (*UserEntry, error) {
+	filter := fmt.Sprintf("(cn=%s)", cn)
+	return it.GetShort(filter)
 }
 
 // Return user groups struct.

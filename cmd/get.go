@@ -10,12 +10,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	// Default attribute for get entries AD
+	defaultSearchAttrAD = "sAMAccountName"
+	// Default attribute for get entries LDAP
+	defaultSearchAttrLDAP = "uid"
+)
+
 var (
 	getShort              bool
 	showOnlyGroups        bool
 	showOnlyGroupsDirect  bool
 	showOnlyMembers       bool
 	showOnlyMembersDirect bool
+	searchAttr            string
 
 	getCmd = &cobra.Command{
 		Use:   "get [enties_id]",
@@ -57,6 +65,8 @@ var (
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.PersistentFlags().BoolVar(&getShort, "short", false, "Print short user info")
+	getCmd.PersistentFlags().StringVarP(&searchAttr, "search-attribute", "a", "",
+		"Specifies search attribute. Defaults for AD - 'sAMAccountName', for LDAP - 'uid'")
 
 	getCmd.AddCommand(getUserCmd)
 	getUserCmd.Flags().BoolVarP(&showOnlyGroups, "groups", "g", false, "Print only user groups")
@@ -138,9 +148,9 @@ func getUsersLdap(args []string) {
 		log.Debugf("Get user info: %s\n", u)
 		var data *ldap.UserEntry
 		if getShort {
-			data, err = c.Users().GetByUidShort(u)
+			data, err = c.Users().GetByCnShort(u)
 		} else {
-			data, err = c.Users().GetByUid(u)
+			data, err = c.Users().GetByCn(u)
 		}
 
 		if err != nil {

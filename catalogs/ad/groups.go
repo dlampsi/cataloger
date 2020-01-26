@@ -29,53 +29,32 @@ type GroupEntry struct {
 	MembersGroups []string
 }
 
-// GetShort Returns short AD group info without all group members search.
-// Created for fast requests when members not needed.
+// Get Returns AD group info by specified ldap search filter.
 // Returns nil structure if group not found.
-func (it *Groups) GetByAccountNameShort(sAMAccountName string) (*GroupEntry, error) {
-	filter := fmt.Sprintf("(&(objectClass=group)(sAMAccountName=%s))", sAMAccountName)
-	sr := ldapconn.CreateRequest(it.c.groupSearchBase, filter)
-	ldapEntry, err := it.c.cl.SearchEntry(sr)
-	if err != nil {
-		return nil, fmt.Errorf("error get group entry: " + err.Error())
-	}
-	if ldapEntry == nil {
-		return nil, nil
-	}
-
-	return &GroupEntry{
-		DN:          ldapEntry.DN,
-		ID:          ldapEntry.GetAttributeValue("sAMAccountName"),
-		CN:          ldapEntry.GetAttributeValue("cn"),
-		Description: ldapEntry.GetAttributeValue("description"),
-		Members: EntryMembership{
-			DirectDN: ldapEntry.GetAttributeValues("member"),
-		},
-	}, nil
-}
-
-// Get Returns AD group info.
-func (it *Groups) GetByAccountName(sAMAccountName string) (*GroupEntry, error) {
-	group, err := it.GetByAccountNameShort(sAMAccountName)
+func (it *Groups) Get(filter string) (*GroupEntry, error) {
+	g, err := it.GetShort(filter)
 	if err != nil {
 		return nil, err
 	}
+	if g == nil {
+		return nil, nil
+	}
 
-	group.Members.Direct = make([]string, 0, len(group.Members.DirectDN))
-	group.Members.All = []string{}
+	g.Members.Direct = make([]string, 0, len(g.Members.DirectDN))
+	g.Members.All = []string{}
 
 	wg := &sync.WaitGroup{}
-	directCh := make(chan string, len(group.Members.DirectDN))
-	allCh := make(chan string, 5000)
+	directCh := make(chan string, len(g.Members.DirectDN))
+	allCh := make(chan string, 500)
 
 	// Using quota chanel because ldap connection may be refused
 	// because of too many connection opened by go routines.
 	quotaCh := make(chan struct{}, 10)
 
 	// Loop over all group members DNs and fill members sAMAccountName lists
-	for _, memberDN := range group.Members.DirectDN {
+	for _, dn := range g.Members.DirectDN {
 		wg.Add(1)
-		go it.procGroupMembers(memberDN, wg, directCh, allCh, quotaCh)
+		go it.procGroupMembers(dn, wg, directCh, allCh, quotaCh)
 	}
 	wg.Wait()
 
@@ -83,27 +62,65 @@ func (it *Groups) GetByAccountName(sAMAccountName string) (*GroupEntry, error) {
 	close(allCh)
 
 	for id := range directCh {
-		group.Members.Direct = append(group.Members.Direct, id)
+		g.Members.Direct = append(g.Members.Direct, id)
 	}
 	for id := range allCh {
-		if !generigo.StringInSlice(id, group.Members.All) {
-			group.Members.All = append(group.Members.All, id)
+		if !generigo.StringInSlice(id, g.Members.All) {
+			g.Members.All = append(g.Members.All, id)
 		}
 	}
+	g.Members.Count = len(g.Members.All)
+	return g, nil
+}
 
-	group.Members.Count = len(group.Members.All)
+// GetShort Returns short AD group info without all group members by specified ldap search filter.
+// Created for fast requests when members not needed.
+// Returns nil structure if group not found.
+func (it *Groups) GetShort(filter string) (*GroupEntry, error) {
+	log.Debugf("Search group by filter: '%s'", filter)
+	sr := ldapconn.CreateRequest(it.c.groupSearchBase, filter)
+	entry, err := it.c.cl.SearchEntry(sr)
+	if err != nil {
+		return nil, fmt.Errorf("error get group entry: " + err.Error())
+	}
+	if entry == nil {
+		log.Debugf("No entries found by filter '%s'", filter)
+		return nil, nil
+	}
 
-	return group, nil
+	return &GroupEntry{
+		DN:          entry.DN,
+		ID:          entry.GetAttributeValue("sAMAccountName"),
+		CN:          entry.GetAttributeValue("cn"),
+		Description: entry.GetAttributeValue("description"),
+		Members: EntryMembership{
+			DirectDN: entry.GetAttributeValues("member"),
+		},
+	}, nil
+}
+
+// GetShort Returns short AD group info without all group members by 'sAMAccountName' attribute.
+// Created for fast requests when members not needed.
+// Returns nil structure if group not found.
+func (it *Groups) GetByAccountNameShort(sAMAccountName string) (*GroupEntry, error) {
+	filter := fmt.Sprintf("(&(objectClass=group)(sAMAccountName=%s))", sAMAccountName)
+	return it.GetShort(filter)
+}
+
+// Get Returns AD group info.
+func (it *Groups) GetByAccountName(sAMAccountName string) (*GroupEntry, error) {
+	filter := fmt.Sprintf("(&(objectClass=group)(sAMAccountName=%s))", sAMAccountName)
+	return it.Get(filter)
 }
 
 // Process group members.
 // Get member by DN, determine if member is group and recoursive search members.
 // Use limitation on quotaCh.
-func (it *Groups) procGroupMembers(memberDN string, wg *sync.WaitGroup, directCh chan<- string, allCh chan<- string, quotaCh chan struct{}) {
+func (it *Groups) procGroupMembers(dn string, wg *sync.WaitGroup, directCh chan<- string, allCh chan<- string, quotaCh chan struct{}) {
 	quotaCh <- struct{}{} // Take a slot in the quota channel
 	defer wg.Done()
 
-	ldapEntry, err := it.c.GetByDN(memberDN)
+	ldapEntry, err := it.c.GetByDN(dn)
 	if err != nil {
 		fmt.Printf("Can't get group member by dn: %s\n", err.Error())
 		return
@@ -129,25 +146,12 @@ func (it *Groups) procGroupMembers(memberDN string, wg *sync.WaitGroup, directCh
 	<-quotaCh // Release slot in the quota channel
 }
 
-// AddMembersByAccountName Add group members.
-// Proc all new members, add to chanel only if member exists and he's not a member
-func (it *Groups) AddMembersByAccountName(sAMAccountName string, members []string) error {
-	log.Debugf("Add '%s' members: %v", sAMAccountName, members)
-	group, err := it.GetByAccountName(sAMAccountName)
-	if err != nil {
-		return err
-	}
-	if group == nil {
-		return ErrEntryNotFound
-	}
-	log.Debugf("Group '%s' found", sAMAccountName)
-	if len(members) == 0 {
-		return ErrEmptyMembersList
-	}
-
+// AddMembers Add group members by specified ldap group search filter and new members list.
+func (it *Groups) AddMembers(g *GroupEntry, members []string) error {
 	wg := &sync.WaitGroup{}
 	ch := make(chan string, 500)
-	for _, member := range members {
+	// Proc all new members, add to chanel only if member exists and he's not a member.
+	for _, m := range members {§
 		wg.Add(1)
 		go func(group *GroupEntry, member string, wg *sync.WaitGroup, ch chan<- string) {
 			defer wg.Done()
@@ -167,7 +171,7 @@ func (it *Groups) AddMembersByAccountName(sAMAccountName string, members []strin
 			}
 			log.Debugf("New member '%s' will be added", member)
 			ch <- user.DN
-		}(group, member, wg, ch)
+		}(g, m, wg, ch)
 	}
 	wg.Wait()
 	close(ch)
@@ -180,18 +184,34 @@ func (it *Groups) AddMembersByAccountName(sAMAccountName string, members []strin
 		return ErrNoNewMembersToAdd
 	}
 
-	newMembersDN := make([]string, 0, len(group.Members.DirectDN)+len(toadd))
-	newMembersDN = append(newMembersDN, group.Members.DirectDN...)
+	newMembersDN := make([]string, 0, len(g.Members.DirectDN)+len(toadd))
+	newMembersDN = append(newMembersDN, g.Members.DirectDN...)
 	newMembersDN = append(newMembersDN, toadd...)
 
 	// Update
-	if err := it.c.cl.UpdateAttribute(group.DN, "member", newMembersDN); err != nil {
+	if err := it.c.cl.UpdateAttribute(g.DN, "member", newMembersDN); err != nil {
 		return err
 	}
 
 	log.Infof("Added %d group members", len(toadd))
-
 	return nil
+}
+
+// AddMembersByAccountName Add group members.
+// Returns 'ErrEntryNotFound' error if group not found by specified filter.
+// Returns 'ErrEmptyMembersList' error if members list is emptry.
+func (it *Groups) AddMembersByAccountName(sAMAccountName string, members []string) error {
+	g, err := it.GetByAccountName(sAMAccountName)
+	if err != nil {
+		return err
+	}
+	if g == nil {
+		return ErrEntryNotFound
+	}
+	if len(members) == 0 {
+		return ErrEmptyMembersList
+	}
+	return it.AddMembers(g, members)
 }
 
 // DelMembersByAccountName Delete user from a group members.
