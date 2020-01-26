@@ -1,4 +1,10 @@
+# Local devel/trash folder
 .dev
+
+# Cataloger files
+cataloger
+.cataloger
+cataloger_*
 
 # Binaries for programs and plugins
 *.exe
@@ -6,9 +12,6 @@
 *.dll
 *.so
 *.dylib
-cataloger
-.cataloger
-cataloger_*
 
 # Test binary, build with `go test -c`
 *.test
