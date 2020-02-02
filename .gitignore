@@ -8,6 +8,7 @@
 *.dylib
 cataloger
 .cataloger
+.cataloger.*
 cataloger_*
 
 # Test binary, build with `go test -c`

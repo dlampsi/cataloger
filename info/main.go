@@ -18,5 +18,13 @@ func ForPrintFull() string {
 
 // ForPrint Returns formated version string for print.
 func ForPrint() string {
-	return fmt.Sprintf("cataloger %s\n", Version)
+	grafic := `                   
+  _____       __         __                       
+ / ___/___ _ / /_ ___ _ / /___  ___ _ ___  ____   
+/ /__ / _ '// __// _ '// // _ \/ _ '// -_)/ __/   
+\___/ \_,_/ \__/ \_,_//_/ \___/\_, / \__//_/      
+                              /___/               `
+
+	return fmt.Sprintf("%s \n\nVersion %s\nBuild time %s", grafic, Version, BuildTime)
+
 }

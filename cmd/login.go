@@ -1,13 +1,15 @@
 package cmd
 
 import (
-	"cataloger/catalogs/ad"
-	"encoding/base64"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"strings"
+
+	"cataloger/catalog/ad"
 
 	"github.com/howeyc/gopass"
 	"github.com/manifoldco/promptui"
@@ -20,65 +22,75 @@ var (
 	loginCmd = &cobra.Command{
 		Use:   "login",
 		Short: "Login to catalog",
-		Run: func(cmd *cobra.Command, args []string) {
-
-			askUser()
-
-			file := cfgFilename + "." + cfgExtention
-			folder := "./" + cfgFolder
-			osuser, err := user.Current()
-			if err == nil {
-				folder = osuser.HomeDir + "/" + cfgFolder
-			}
-			path := folder + "/" + file
-
-			// Create config in not exists
-			if viper.ConfigFileUsed() == "" {
-				// Create config folder
-				if _, err := os.Stat(folder); os.IsNotExist(err) {
-					if err := os.Mkdir(folder, 0700); err != nil {
-						log.Fatalf("Can't create config direcotry: %s", err.Error())
-					}
-				}
-				log.Debug("Creating config file: " + path)
-				f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if err := f.Close(); err != nil {
-					log.Fatal(err)
-				}
-			}
-			// Update config file
-			viper.SetConfigType(cfgExtention)
-			if err := viper.WriteConfig(); err != nil {
-				log.Fatal(err)
-			}
-
-			log.Debugf("Trying connect to catalog. Source: %s", source)
-			// Decode password
-			d, err := base64Decode(viper.GetString("auth.bind_pass"))
-			if err != nil {
-				log.Fatal(err)
-			}
-			viper.Set("auth.bind_pass", d)
-			switch source {
-			case "ad":
-				if err := ad.CheckConnection(createConfig()); err != nil {
-					log.Fatal(err)
-				}
-				log.Debugf("Successfully connected to %s:%s", viper.GetString("server.host"), viper.GetString("server.port"))
-			default:
-				log.Fatalf("Unknown source type: %s", source)
-			}
-
-			log.Info("Login successfull")
-		},
+		Run:   loginRun,
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(loginCmd)
+}
+
+type catalogerConfig struct {
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	SSL        bool   `json:"ssl"`
+	Insecure   bool   `json:"insecure"`
+	Bind       string `json:"bind"`
+	Password   string `json:"password"`
+	SearchBase string `json:"search-base"`
+}
+
+func loginRun(cmd *cobra.Command, args []string) {
+	askUser()
+	file := ".cataloger.json"
+	folder := "./"
+	osuser, err := user.Current()
+	if err == nil {
+		folder = osuser.HomeDir
+	}
+	path := folder + "/" + file
+	// Create config in not exists
+	if viper.ConfigFileUsed() == "" {
+		log.Debug("Creating config file: " + path)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}
+	viper.SetConfigFile(path)
+	config := catalogerConfig{
+		Host:       viper.GetString("host"),
+		Port:       viper.GetInt("port"),
+		SSL:        viper.GetBool("ssl"),
+		Insecure:   viper.GetBool("insecure"),
+		Bind:       viper.GetString("bind"),
+		Password:   viper.GetString("password"),
+		SearchBase: viper.GetString("search-base"),
+	}
+	b, err := json.Marshal(&config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defaultConfig := bytes.NewReader(b)
+	v := viper.New()
+	v.SetConfigFile(viper.ConfigFileUsed())
+	v.SetConfigType("json")
+	if err := v.MergeConfig(defaultConfig); err != nil {
+		log.Fatal(err)
+	}
+	if err := v.WriteConfig(); err != nil {
+		log.Fatal(err)
+	}
+	log.Debugf("Trying to connect to catalog...")
+	if err := ad.CheckConnection(loadClientConfig()); err != nil {
+		log.Fatal(err)
+	}
+	log.Debugf("Successfully connected to %s:%s", viper.GetString("host"), viper.GetString("port"))
+
+	log.Info("Login successfull")
 }
 
 func askUser() {
@@ -88,41 +100,41 @@ func askUser() {
 
 	var resp string
 
-	resp = promptString("Host", viper.GetString("server.host"))
-	viper.Set("server.host", resp)
+	resp = promptString("Host", viper.GetString("host"))
+	viper.Set("host", resp)
 
-	resp = promptString("Port", viper.GetString("server.port"))
-	viper.Set("server.port", resp)
+	resp = promptString("Port", viper.GetString("port"))
+	viper.Set("port", resp)
 
-	resp = promptString("Use SSL", viper.GetString("server.ssl"))
+	resp = promptString("Use SSL", viper.GetString("ssl"))
 	switch strings.ToLower(resp) {
 	case "true":
-		viper.Set("server.ssl", true)
+		viper.Set("ssl", true)
 	case "false":
-		viper.Set("server.ssl", false)
+		viper.Set("ssl", false)
 	default:
 		log.Fatal("Unexpected value. Expecting 'true' or 'false'")
 	}
 
-	resp = promptString("Insecure SSL", viper.GetString("server.insecure"))
+	resp = promptString("Insecure SSL", viper.GetString("insecure"))
 	switch strings.ToLower(resp) {
 	case "true":
-		viper.Set("server.insecure", true)
+		viper.Set("insecure", true)
 	case "false":
-		viper.Set("server.insecure", false)
+		viper.Set("insecure", false)
 	default:
 		log.Fatal("Unexpected value. Expecting 'true' or 'false'")
 	}
 
-	resp = promptString("BindDN", viper.GetString("auth.bind_dn"))
-	viper.Set("auth.bind_dn", resp)
+	resp = promptString("BindDN", viper.GetString("bind"))
+	viper.Set("bind", resp)
 
 	fmt.Printf("BindDN password: ")
 	pass, _ := gopass.GetPasswdMasked()
-	viper.Set("auth.bind_pass", base64Encode(string(pass)))
+	viper.Set("password", string(pass))
 
-	resp = promptString("Search base", viper.GetString("params.search_base"))
-	viper.Set("params.search_base", resp)
+	resp = promptString("Search base", viper.GetString("search-base"))
+	viper.Set("search-base", resp)
 }
 
 func promptString(label string, defVal string) string {
@@ -156,16 +168,4 @@ func promptString(label string, defVal string) string {
 	}
 
 	return result
-}
-
-func base64Encode(str string) string {
-	return base64.StdEncoding.EncodeToString([]byte(str))
-}
-
-func base64Decode(str string) (string, error) {
-	data, err := base64.StdEncoding.DecodeString(str)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }
