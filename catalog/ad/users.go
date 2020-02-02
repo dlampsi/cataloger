@@ -3,7 +3,8 @@ package ad
 import (
 	"fmt"
 
-	"github.com/dlampsi/ldapconn"
+	"cataloger/client"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -29,8 +30,11 @@ type User struct {
 // GetByAccountNameShort Get user info from catalog by user sAMAccountName.
 // Returns nil structure if user not found.
 func (it *Users) GetByFilter(filter string) ([]User, error) {
-	log.WithFields(log.Fields{"filter": filter, "base": it.c.base}).Debug("GetByFilter")
-	sr := ldapconn.CreateRequest(it.c.base, filter)
+	log.WithFields(log.Fields{
+		"filter": filter,
+		"base":   it.c.Attributes.SearchBase,
+	}).Debug("GetByFilter")
+	sr := client.NewSearchRequest(it.c.Attributes.SearchBase, filter)
 	entries, err := it.c.cl.SearchEntries(sr)
 	if err != nil {
 		return nil, fmt.Errorf("can't perform search: %s", err.Error())

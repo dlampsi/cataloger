@@ -1,12 +1,12 @@
 package ad
 
 import (
+	"cataloger/client"
 	"fmt"
 
 	"github.com/dlampsi/generigo"
-	"github.com/dlampsi/ldapconn"
+	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/ldap.v3"
 )
 
 // Membership AD entrie groups membership or group members structure.
@@ -21,7 +21,7 @@ type Membership struct {
 // Returns 'ErrEntryNotFound' error when entry not founded.
 func (c *Catalog) GetByDN(dn string) (*ldap.Entry, error) {
 	filter := fmt.Sprintf("(distinguishedName=%s)", ldap.EscapeFilter(dn))
-	sr := ldapconn.CreateRequest(c.base, filter)
+	sr := client.NewSearchRequest(c.Attributes.SearchBase, filter)
 	return c.cl.SearchEntry(sr)
 }
 
@@ -31,8 +31,8 @@ func (c *Catalog) GetMembership(dn string, m *Membership) (*Membership, error) {
 		m = &Membership{}
 	}
 	filter := fmt.Sprintf(`(&(objectClass=group)(member=%v))`, ldap.EscapeFilter(dn))
-	log.WithFields(log.Fields{"filter": filter, "base": c.base}).Debug("GetMembership")
-	sr := ldapconn.CreateRequest(c.base, filter)
+	log.WithFields(log.Fields{"filter": filter, "base": c.Attributes.SearchBase}).Debug("GetMembership")
+	sr := client.NewSearchRequest(c.Attributes.SearchBase, filter)
 	ldapEntries, err := c.cl.SearchEntries(sr)
 	if err != nil {
 		return nil, fmt.Errorf("can't get entry groups membership: " + err.Error())

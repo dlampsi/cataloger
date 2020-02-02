@@ -1,13 +1,19 @@
 package ad
 
 import (
+	"cataloger/client"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/dlampsi/generigo"
-	"github.com/dlampsi/ldapconn"
+	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/ldap.v3"
+)
+
+var (
+	ErrNoNewMembersToAdd = errors.New("no new members to add")
+	ErrNoNewMembersToDel = errors.New("no new members to delete")
 )
 
 // Groups struct.
@@ -33,8 +39,8 @@ type Group struct {
 // GetByAccountNameShort Get user info from catalog by user sAMAccountName.
 // Returns nil structure if user not found.
 func (it *Groups) GetByFilter(filter string) ([]Group, error) {
-	log.WithFields(log.Fields{"filter": filter, "base": it.c.base}).Debug("GetByFilter")
-	sr := ldapconn.CreateRequest(it.c.base, filter)
+	log.WithFields(log.Fields{"filter": filter, "base": it.c.Attributes.SearchBase}).Debug("GetByFilter")
+	sr := client.NewSearchRequest(it.c.Attributes.SearchBase, filter)
 	entries, err := it.c.cl.SearchEntries(sr)
 	if err != nil {
 		return nil, fmt.Errorf("can't perform search: %s", err.Error())
@@ -62,7 +68,7 @@ func (it *Groups) GetMembers(group *Group, nested bool) (*Group, error) {
 	if nested {
 		filter = fmt.Sprintf(`(&(objectCategory=person)(memberOf:1.2.840.113556.1.4.1941:=%v))`, ldap.EscapeFilter(group.DN))
 	}
-	log.WithFields(log.Fields{"filter": filter, "base": it.c.base}).Debug("GetMembers")
+	log.WithFields(log.Fields{"filter": filter, "base": it.c.Attributes.SearchBase}).Debug("GetMembers")
 	members, err := it.c.Users().GetByFilter(filter)
 	if err != nil {
 		return nil, fmt.Errorf("can't get group members: %s", err.Error())
@@ -114,5 +120,62 @@ func (it *Groups) AddMembers(g *Group, members []string) error {
 	newMembersDN := make([]string, 0, len(g.Members.DirectDN)+len(toadd))
 	newMembersDN = append(newMembersDN, g.Members.DirectDN...)
 	newMembersDN = append(newMembersDN, toadd...)
-	return it.c.cl.UpdateAttribute(g.DN, "member", newMembersDN)
+
+	if err := it.c.cl.UpdateAttribute(g.DN, "member", newMembersDN); err != nil {
+		return fmt.Errorf("error update group: %s", err.Error())
+	}
+	log.Infof("Added %d group members", len(toadd))
+	return nil
+}
+
+func (it *Groups) DelMembers(g *Group, members []string) error {
+	wg := &sync.WaitGroup{}
+	ch := make(chan string, 500)
+	for _, m := range members {
+		wg.Add(1)
+		go func(g *Group, m string, wg *sync.WaitGroup, ch chan<- string) {
+			defer wg.Done()
+			log.Debugf("Processing member '%s'", m)
+			users, err := it.c.Users().GetByFilter(fmt.Sprintf("(sAMAccountName=%s)", m))
+			if err != nil {
+				log.Warnf("Can't get member '%s': %s", m, err.Error())
+				return
+			}
+			if len(users) == 0 {
+				log.Warnf("Member entry '%s' not found", m)
+				return
+			}
+			u := users[0]
+			if !generigo.StringInSlice(u.ID, g.Members.All) {
+				log.Warnf("User '%s' already not a member of a group", m)
+				return
+			}
+			log.Debugf("Member '%s' will be deleted from group", m)
+			ch <- u.DN
+		}(g, m, wg, ch)
+	}
+	wg.Wait()
+	close(ch)
+	todell := make([]string, 0, len(ch))
+	for r := range ch {
+		todell = append(todell, r)
+	}
+	if len(todell) == 0 {
+		return ErrNoNewMembersToDel
+	}
+	log.Debugf("Members to delete: %v", todell)
+
+	// Delete from group only current group members
+	newMembersDN := make([]string, 0, len(g.Members.DirectDN))
+	for _, curMember := range g.Members.DirectDN {
+		if !generigo.StringInSlice(curMember, todell) {
+			newMembersDN = append(newMembersDN, curMember)
+		}
+	}
+	log.Debug(newMembersDN)
+	if err := it.c.cl.UpdateAttribute(g.DN, "member", newMembersDN); err != nil {
+		return fmt.Errorf("error update group: %s", err.Error())
+	}
+	log.Infof("Removed %d group members", len(todell))
+	return nil
 }

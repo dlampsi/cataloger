@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"cataloger/ad"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -15,69 +14,61 @@ var (
 		Short: "Search for entries",
 	}
 	searchUserCmd = &cobra.Command{
-		Use:   "user <users_id>",
+		Use:   "user [users_ids]",
 		Short: "Search for user entires",
-		Run: func(cmd *cobra.Command, args []string) {
-			adSearchUser(args)
-		},
+		Run:   searchUserRun,
 	}
 	searchGroupCmd = &cobra.Command{
-		Use:   "group <groups_id>",
+		Use:   "group [groups_ids]",
 		Short: "Search for group entires",
-		Run: func(cmd *cobra.Command, args []string) {
-			adSearchGroup(args)
-		},
+		Run:   searchGroupRun,
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(searchCmd)
-	searchCmd.PersistentFlags().String("filter", "", "LDAP search filter")
-	bindSearchFlag("filter")
-	searchCmd.PersistentFlags().String("attribute", "", "Search attribute name")
-	bindSearchFlag("attribute")
+	bindPersistentFlag(searchCmd, "String", &flagAttributes{
+		Id:           "filter",
+		Description:  "LDAP search filter",
+		DefaultValue: "",
+	})
+	bindPersistentFlag(searchCmd, "String", &flagAttributes{
+		Id:           "attribute",
+		Description:  "Search attribute name",
+		DefaultValue: "",
+	})
 
 	searchCmd.AddCommand(searchUserCmd)
-	searchUserCmd.Flags().BoolP("user-groups", "g", false, "Search user groups memberships")
-	if err := viper.BindPFlag("user-groups", searchUserCmd.Flags().Lookup("user-groups")); err != nil {
-		log.Fatal(err)
-	}
+	bindFlag(searchUserCmd, "BoolP", &flagAttributes{
+		Id:          "user-groups",
+		Short:       "g",
+		Description: "Search user groups memberships",
+	})
 
 	searchCmd.AddCommand(searchGroupCmd)
-	searchGroupCmd.Flags().BoolP("group-members", "m", false, "Search group members")
-	if err := viper.BindPFlag("group-members", searchGroupCmd.Flags().Lookup("group-members")); err != nil {
-		log.Fatal(err)
-	}
-	searchGroupCmd.Flags().BoolP("nested", "n", false, "Search for nested grop members")
-	if err := viper.BindPFlag("nested", searchGroupCmd.Flags().Lookup("nested")); err != nil {
-		log.Fatal(err)
-	}
+	bindFlag(searchGroupCmd, "BoolP", &flagAttributes{
+		Id:          "group-members",
+		Short:       "m",
+		Description: "Search group members",
+	})
+	bindFlag(searchGroupCmd, "BoolP", &flagAttributes{
+		Id:          " ",
+		Short:       "n",
+		Description: "Search for nested grop members",
+	})
 }
 
-func bindSearchFlag(flagId string) {
-	if err := viper.BindPFlag(flagId, searchCmd.PersistentFlags().Lookup(flagId)); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func adSearchUser(args []string) {
-	ldapCfg := createLdapClient()
-
-	c, err := ad.NewCatalog(ldapCfg, viper.GetString("search-base"))
+func searchUserRun(cmd *cobra.Command, args []string) {
+	catalog, err := initAdCatalog()
 	if err != nil {
-		log.Fatalf("Error connect to catalog: %s", err.Error())
+		log.Fatal(err)
 	}
 	filter := viper.GetString("filter")
-	attribute := viper.GetString("attribute")
-	if attribute == "" {
-		attribute = "sAMAccountName"
-	}
-
 	for _, arg := range args {
 		if filter == "" {
-			filter = fmt.Sprintf("(&(objectClass=person)(%s=%s))", attribute, arg)
+			filter = fmt.Sprintf("(&(objectClass=person)(%s=%s))", catalog.Attributes.SearchAttribute, arg)
 		}
-		users, err := c.Users().GetByFilter(filter)
+		users, err := catalog.Users().GetByFilter(filter)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -88,37 +79,30 @@ func adSearchUser(args []string) {
 		}
 		for _, u := range users {
 			if viper.GetBool("user-groups") {
-				ug, err := c.Users().GetGroups(&u)
+				ug, err := catalog.Users().GetGroups(&u)
 				if err != nil {
 					log.Error(err)
 					continue
 				}
-				c.Users().Printer(ug)
+				catalog.Users().Printer(ug)
 			} else {
-				c.Users().Printer(&u)
+				catalog.Users().Printer(&u)
 			}
 		}
 	}
 }
 
-func adSearchGroup(args []string) {
-	ldapCfg := createLdapClient()
-
-	c, err := ad.NewCatalog(ldapCfg, viper.GetString("search-base"))
+func searchGroupRun(cmd *cobra.Command, args []string) {
+	catalog, err := initAdCatalog()
 	if err != nil {
-		log.Fatalf("Error connect to catalog: %s", err.Error())
+		log.Fatal(err)
 	}
 	filter := viper.GetString("filter")
-	attribute := viper.GetString("attribute")
-	if attribute == "" {
-		attribute = "sAMAccountName"
-	}
-
 	for _, arg := range args {
 		if filter == "" {
-			filter = fmt.Sprintf("(&(objectClass=group)(%s=%s))", attribute, arg)
+			filter = fmt.Sprintf("(&(objectClass=group)(%s=%s))", catalog.Attributes.SearchAttribute, arg)
 		}
-		groups, err := c.Groups().GetByFilter(filter)
+		groups, err := catalog.Groups().GetByFilter(filter)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -128,11 +112,11 @@ func adSearchGroup(args []string) {
 			continue
 		}
 		for _, g := range groups {
-			g, err := c.Groups().GetMembers(&g, viper.GetBool("nested"))
+			g, err := catalog.Groups().GetMembers(&g, viper.GetBool("nested"))
 			if err != nil {
 				log.Error(err)
 			} else {
-				c.Groups().Printer(g, viper.GetBool("group-members"))
+				catalog.Groups().Printer(g, viper.GetBool("group-members"))
 			}
 		}
 	}

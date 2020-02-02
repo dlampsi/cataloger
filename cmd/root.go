@@ -4,7 +4,9 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/dlampsi/ldapconn"
+	"cataloger/catalog/ad"
+	"cataloger/client"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -26,22 +28,44 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "./.cataloger.json", "Path to config file")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "Path to config file")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose console output")
-	rootCmd.PersistentFlags().String("host", "", "LDAP catalog connection host name or ip")
-	bindFlag("host")
-	rootCmd.PersistentFlags().Int("port", 0, "LDAP catalog connection port")
-	bindFlag("port")
-	rootCmd.PersistentFlags().Bool("ssl", false, "Use ssl for LDAP catalog connection")
-	bindFlag("ssl")
-	rootCmd.PersistentFlags().Bool("insecure", false, "Insecure ssl connection to LDAP catalog (for self-signet certs)")
-	bindFlag("insecure")
-	rootCmd.PersistentFlags().StringP("bind", "b", "", "BindDN user for auth in LDAP catalog")
-	bindFlag("bind")
-	rootCmd.PersistentFlags().StringP("password", "p", "", "BindDN user password")
-	bindFlag("password")
-	rootCmd.PersistentFlags().String("search-base", "", "LDAP search base")
-	bindFlag("search-base")
+
+	bindPersistentFlag(rootCmd, "String", &flagAttributes{
+		Id:           "host",
+		Description:  "LDAP host name or IP",
+		DefaultValue: "",
+	})
+	bindPersistentFlag(rootCmd, "Int", &flagAttributes{
+		Id:           "port",
+		Description:  "LDAP host port",
+		DefaultValue: 0,
+	})
+	bindPersistentFlag(rootCmd, "Bool", &flagAttributes{
+		Id:          "ssl",
+		Description: "Use SSL for connect to LDAP server",
+	})
+	bindPersistentFlag(rootCmd, "Bool", &flagAttributes{
+		Id:          "insecure",
+		Description: "Insecure ssl connection to LDAP catalog (for self-signet certs)",
+	})
+	bindPersistentFlag(rootCmd, "StringP", &flagAttributes{
+		Id:           "bind",
+		Short:        "b",
+		Description:  "BindDN user for auth in LDAP catalog",
+		DefaultValue: "",
+	})
+	bindPersistentFlag(rootCmd, "StringP", &flagAttributes{
+		Id:           "password",
+		Short:        "p",
+		Description:  "BindDN user password",
+		DefaultValue: "",
+	})
+	bindPersistentFlag(rootCmd, "String", &flagAttributes{
+		Id:           "search-base",
+		Description:  "LDAP search base",
+		DefaultValue: "",
+	})
 }
 
 func initConfig() {
@@ -67,12 +91,6 @@ func initConfig() {
 	log.Debugf("Using config file: %s", viper.ConfigFileUsed())
 }
 
-func bindFlag(flagId string) {
-	if err := viper.BindPFlag(flagId, rootCmd.PersistentFlags().Lookup(flagId)); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func setLogging() {
 	log.SetFormatter(&log.TextFormatter{
 		DisableColors:          false,
@@ -85,15 +103,33 @@ func setLogging() {
 	}
 }
 
-func createLdapClient() *ldapconn.Config {
-	cfg := &ldapconn.Config{
-		Host:     viper.GetString("host"),
-		Port:     viper.GetInt("port"),
-		SSL:      viper.GetBool("ssl"),
-		Insecure: viper.GetBool("insecure"),
-		BindDN:   viper.GetString("bind"),
-		BindPass: viper.GetString("password"),
+// Returns ldap client config from parsed cmd flags.
+func loadClientConfig() *client.Config {
+	cfg := &client.Config{
+		Host:         viper.GetString("host"),
+		Port:         viper.GetInt("port"),
+		SSL:          viper.GetBool("insecure"),
+		Insecure:     viper.GetBool("insecure"),
+		BindDN:       viper.GetString("bind"),
+		BindPassword: viper.GetString("password"),
 	}
-	log.Debugf("Creating ldap client to %s:%d, bind: %s", cfg.Host, cfg.Port, cfg.BindDN)
+	log.WithFields(log.Fields{
+		"host": cfg.Host,
+		"port": cfg.Port,
+		"bind": cfg.BindDN,
+	}).Debug("LDAP client config")
 	return cfg
+}
+
+func initAdCatalog() (*ad.Catalog, error) {
+	config := loadClientConfig()
+	searchAttribute := viper.GetString("attribute")
+	if searchAttribute == "" {
+		searchAttribute = "sAMAccountName"
+	}
+	searchBase := viper.GetString("search-base")
+	return ad.NewCatalog(config, &ad.Attributes{
+		SearchBase:      searchBase,
+		SearchAttribute: searchAttribute,
+	})
 }
