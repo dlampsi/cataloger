@@ -1,9 +1,17 @@
 package ad
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/dlampsi/ldapconn"
+)
+
+var (
+	ErrNoNewMembersToAdd = errors.New("no new members to add")
+	ErrNoNewMembersToDel = errors.New("no new members to delete")
+	ErrEntryNotFound     = errors.New("entry not foiund")
+	ErrEmptyMembersList  = errors.New("empty members list")
 )
 
 type Catalog struct {

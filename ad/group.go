@@ -2,7 +2,9 @@ package ad
 
 import (
 	"fmt"
+	"sync"
 
+	"github.com/dlampsi/generigo"
 	"github.com/dlampsi/ldapconn"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/ldap.v3"
@@ -56,11 +58,12 @@ func (it *Groups) GetByFilter(filter string) ([]Group, error) {
 }
 
 func (it *Groups) GetMembers(group *Group, nested bool) (*Group, error) {
-	membersFilter := fmt.Sprintf(`(&(objectCategory=person)(memberOf=%v))`, ldap.EscapeFilter(group.DN))
+	filter := fmt.Sprintf(`(&(objectCategory=person)(memberOf=%v))`, ldap.EscapeFilter(group.DN))
 	if nested {
-		membersFilter = fmt.Sprintf(`(&(objectCategory=person)(memberOf:1.2.840.113556.1.4.1941:=%v))`, ldap.EscapeFilter(group.DN))
+		filter = fmt.Sprintf(`(&(objectCategory=person)(memberOf:1.2.840.113556.1.4.1941:=%v))`, ldap.EscapeFilter(group.DN))
 	}
-	members, err := it.c.Users().GetByFilter(membersFilter)
+	log.WithFields(log.Fields{"filter": filter, "base": it.c.base}).Debug("GetMembers")
+	members, err := it.c.Users().GetByFilter(filter)
 	if err != nil {
 		return nil, fmt.Errorf("can't get group members: %s", err.Error())
 	}
@@ -70,4 +73,46 @@ func (it *Groups) GetMembers(group *Group, nested bool) (*Group, error) {
 	}
 	group.Members.Count = len(group.Members.All)
 	return group, nil
+}
+
+func (it *Groups) AddMembers(g *Group, members []string) error {
+	wg := &sync.WaitGroup{}
+	ch := make(chan string, 500)
+	for _, m := range members {
+		wg.Add(1)
+		go func(g *Group, m string, wg *sync.WaitGroup, ch chan<- string) {
+			defer wg.Done()
+			log.Debugf("Processing member '%s'", m)
+			users, err := it.c.Users().GetByFilter(fmt.Sprintf("(sAMAccountName=%s)", m))
+			if err != nil {
+				log.Warnf("Can't get member '%s': %s", m, err.Error())
+				return
+			}
+			if len(users) == 0 {
+				log.Warnf("Member entry '%s' not found", m)
+				return
+			}
+			u := users[0]
+			if generigo.StringInSlice(u.ID, g.Members.All) {
+				log.Warnf("User '%s' already member of a group", m)
+				return
+			}
+			log.Debugf("New member '%s' will be added", m)
+			ch <- u.DN
+		}(g, m, wg, ch)
+	}
+	wg.Wait()
+	close(ch)
+	toadd := make([]string, 0, len(ch))
+	for r := range ch {
+		toadd = append(toadd, r)
+	}
+	if len(toadd) == 0 {
+		return ErrNoNewMembersToAdd
+	}
+	log.Debugf("Members to add: %v", toadd)
+	newMembersDN := make([]string, 0, len(g.Members.DirectDN)+len(toadd))
+	newMembersDN = append(newMembersDN, g.Members.DirectDN...)
+	newMembersDN = append(newMembersDN, toadd...)
+	return it.c.cl.UpdateAttribute(g.DN, "member", newMembersDN)
 }

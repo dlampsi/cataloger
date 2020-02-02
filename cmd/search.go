@@ -15,14 +15,14 @@ var (
 		Short: "Search for entries",
 	}
 	searchUserCmd = &cobra.Command{
-		Use:   "user",
+		Use:   "user <users_id>",
 		Short: "Search for user entires",
 		Run: func(cmd *cobra.Command, args []string) {
 			adSearchUser(args)
 		},
 	}
 	searchGroupCmd = &cobra.Command{
-		Use:   "group",
+		Use:   "group <groups_id>",
 		Short: "Search for group entires",
 		Run: func(cmd *cobra.Command, args []string) {
 			adSearchGroup(args)
@@ -34,7 +34,7 @@ func init() {
 	rootCmd.AddCommand(searchCmd)
 	searchCmd.PersistentFlags().String("filter", "", "LDAP search filter")
 	bindSearchFlag("filter")
-	searchCmd.PersistentFlags().StringP("attribute", "a", "", "Search attribute name")
+	searchCmd.PersistentFlags().String("attribute", "", "Search attribute name")
 	bindSearchFlag("attribute")
 
 	searchCmd.AddCommand(searchUserCmd)
