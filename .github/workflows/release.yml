@@ -22,8 +22,8 @@ jobs:
 
       - name: Build
         run: |
-          GOOS=darwin GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_darwin_amd64
-          GOOS=linux GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} OUTPUT=cataloger_linux_amd64
+          GOOS=darwin GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} BINARY_NAME=cataloger_darwin_amd64
+          GOOS=linux GOARCH=amd64 make build RELEASE=${GITHUB_REF##*/} BINARY_NAME=cataloger_linux_amd64
           
       - uses: actions/upload-artifact@master
         with:
