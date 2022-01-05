@@ -1,6 +1,6 @@
 module cataloger
 
-go 1.13
+go 1.16
 
 require (
 	github.com/coredns/coredns v1.6.6
