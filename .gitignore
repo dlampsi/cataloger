@@ -1,4 +1,16 @@
+# IDEs directories
+.idea
 .dev
+.vscode
+
+# OS
+.DS_Store
+
+# Release commit messages
+.gitlog
+
+# Local backup files (for dev proposes)
+*.back
 
 # Binaries for programs and plugins
 *.exe
@@ -6,13 +18,20 @@
 *.dll
 *.so
 *.dylib
-cataloger
-.cataloger
-.cataloger.*
-cataloger_*
 
 # Test binary, build with `go test -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+
+# Binary files in root folder
+/cataloger
+/.cataloger*
+
+# Local .env file
+.env*
+
+# Docker
+docker-compose.yml
