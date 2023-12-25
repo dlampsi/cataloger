@@ -3,8 +3,8 @@ package ad
 import (
 	"cataloger/client"
 	"fmt"
+	"slices"
 
-	"github.com/dlampsi/generigo"
 	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
 )
@@ -45,7 +45,7 @@ func (c *Catalog) GetMembership(dn string, m *Membership) (*Membership, error) {
 		}
 	}
 	for _, le := range ldapEntries {
-		if !generigo.StringInSlice(le.GetAttributeValue("sAMAccountName"), m.All) {
+		if !slices.Contains(m.All, le.GetAttributeValue("sAMAccountName")) {
 			m.All = append(m.All, le.GetAttributeValue("sAMAccountName"))
 			// Recourcive call entry group membership in other groups
 			m, _ = c.GetMembership(le.DN, m)

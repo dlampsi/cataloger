@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/dlampsi/generigo"
 	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -99,7 +99,7 @@ func (it *Groups) AddMembers(g *Group, members []string) error {
 				return
 			}
 			u := users[0]
-			if generigo.StringInSlice(u.ID, g.Members.All) {
+			if slices.Contains(g.Members.All, u.ID) {
 				log.Warnf("User '%s' already member of a group", m)
 				return
 			}
@@ -146,7 +146,7 @@ func (it *Groups) DelMembers(g *Group, members []string) error {
 				return
 			}
 			u := users[0]
-			if !generigo.StringInSlice(u.ID, g.Members.All) {
+			if !slices.Contains(g.Members.All, u.ID) {
 				log.Warnf("User '%s' already not a member of a group", m)
 				return
 			}
@@ -168,7 +168,7 @@ func (it *Groups) DelMembers(g *Group, members []string) error {
 	// Delete from group only current group members
 	newMembersDN := make([]string, 0, len(g.Members.DirectDN))
 	for _, curMember := range g.Members.DirectDN {
-		if !generigo.StringInSlice(curMember, todell) {
+		if !slices.Contains(todell, curMember) {
 			newMembersDN = append(newMembersDN, curMember)
 		}
 	}
