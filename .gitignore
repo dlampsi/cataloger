@@ -6,13 +6,8 @@
 # OS
 .DS_Store
 
-# Release commit messages
-.gitlog
-
-# Local backup files (for dev proposes)
-*.back
-
 # Binaries for programs and plugins
+bin
 *.exe
 *.exe~
 *.dll
@@ -25,13 +20,7 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-
-# Binary files in root folder
-/cataloger
-/.cataloger*
-
 # Local .env file
 .env*
 
-# Docker
-docker-compose.yml
+/.cataloger*
