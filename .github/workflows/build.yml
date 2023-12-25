@@ -1,0 +1,64 @@
+name: Build
+on:
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '**/README.md'
+      - LICENSE
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*.*.*'
+    paths-ignore:
+      - '**/README.md'
+      - LICENSE
+jobs:
+  binary:
+    strategy:
+      fail-fast: false
+      matrix:
+        goos:
+          - darwin
+          - linux
+        arch:
+          - amd64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: go mod download
+
+      - name: Preparations
+        run:  make prep
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.arch }}
+        run:  make build BINARY=cataloger_${{ matrix.goos }}_${{ matrix.arch }}
+
+      - id: env
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "binary=cataloger_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "binary=cataloger_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.env.outputs.binary }}
+          path: bin/cataloger_${{ matrix.goos }}_${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
