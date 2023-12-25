@@ -3,7 +3,6 @@ module cataloger
 go 1.21.1
 
 require (
-	github.com/dlampsi/generigo v1.6.0
 	github.com/go-ldap/ldap/v3 v3.4.6
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	github.com/manifoldco/promptui v0.9.0
